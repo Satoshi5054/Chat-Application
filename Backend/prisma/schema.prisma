@@ -37,6 +37,8 @@ model User {
   companyId String
   company   Company  @relation(fields: [companyId], references: [id])
 
+  @@unique([email, companyId])
+
   // Chat
   messagesSent Message[]
   memberships  ConversationMember[]
@@ -117,7 +119,7 @@ model MessageRead {
 }
 
 //////////////////////////////////////////////////////
-// MEETINGS
+// MEETINGS 
 //////////////////////////////////////////////////////
 
 model Meeting {
