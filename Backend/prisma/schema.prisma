@@ -18,7 +18,6 @@ model Company {
 
   users         User[]
   conversations Conversation[]
-  meetings      Meeting[]
 }
 
 //////////////////////////////////////////////////////
@@ -42,11 +41,7 @@ model User {
   // Chat
   messagesSent Message[]
   memberships  ConversationMember[]
-  reads        MessageRead[]
 
-  // Meetings
-  meetingsCreated Meeting[]
-  meetingInvites  MeetingParticipant[]
 }
 
 //////////////////////////////////////////////////////
@@ -61,8 +56,13 @@ model Conversation {
   companyId String
   company   Company  @relation(fields: [companyId], references: [id])
 
+  lastMessage   String?
+  lastMessageAt DateTime?
+
   members  ConversationMember[]
   messages Message[]
+
+  @@index([companyId])
 }
 
 //////////////////////////////////////////////////////
@@ -79,7 +79,10 @@ model ConversationMember {
   userId String
   user   User @relation(fields: [userId], references: [id])
 
+  lastReadMessageId String?
+
   @@unique([conversationId, userId])
+  @@index([userId])
 }
 
 //////////////////////////////////////////////////////
@@ -98,68 +101,9 @@ model Message {
   senderId String
   sender   User @relation(fields: [senderId], references: [id])
 
-  reads MessageRead[]
+  @@index([conversationId, createdAt])
 }
 
-//////////////////////////////////////////////////////
-// MESSAGE READ RECEIPTS
-//////////////////////////////////////////////////////
-
-model MessageRead {
-  id        String   @id @default(cuid())
-  readAt    DateTime @default(now())
-
-  messageId String
-  message   Message @relation(fields: [messageId], references: [id])
-
-  userId String
-  user   User @relation(fields: [userId], references: [id])
-
-  @@unique([messageId, userId])
-}
-
-//////////////////////////////////////////////////////
-// MEETINGS 
-//////////////////////////////////////////////////////
-
-model Meeting {
-  id          String   @id @default(cuid())
-
-  title       String
-  description String?
-
-  startTime   DateTime
-  endTime     DateTime
-  allDay      Boolean  @default(false)
-
-  location    String?
-
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-
-  participants MeetingParticipant[]
-
-  createdAt   DateTime @default(now())
-}
-
-//////////////////////////////////////////////////////
-// MEETING PARTICIPANTS
-//////////////////////////////////////////////////////
-
-model MeetingParticipant {
-  id        String  @id @default(cuid())
-
-  meetingId String
-  meeting   Meeting @relation(fields: [meetingId], references: [id])
-
-  userId    String
-  user      User @relation(fields: [userId], references: [id])
-
-  @@unique([meetingId, userId])
-}
 
 //////////////////////////////////////////////////////
 // ENUMS
