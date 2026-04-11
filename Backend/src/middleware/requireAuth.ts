@@ -9,7 +9,7 @@ type Payload = {
 
 }
 
-export const requireAuth = async (req : Request, res: Response, next: NextFunction)=>{
+const requireAuth = async (req : Request, res: Response, next: NextFunction)=>{
     try{
         const token = req.cookies.token
 
@@ -31,3 +31,5 @@ export const requireAuth = async (req : Request, res: Response, next: NextFuncti
         return res.status(401).json({message : "Invalid Token"})
     }
 }
+
+export default requireAuth

@@ -2,6 +2,47 @@ import type { RequestHandler } from "express"
 import { prisma } from "../lib/prisma.js"
 
 //////////////////////////////////////////////////////
+// Get Conversations
+//////////////////////////////////////////////////////
+
+export const getConversations: RequestHandler = async (req,res)=>{
+  try{
+    const user = req.user
+
+    const conversations = await prisma.conversation.findMany({
+      where:{
+        members: {
+          some:{
+            userId: user.id
+          }
+        }
+      },
+      orderBy:{
+        lastMessageAt: "desc"
+      },
+
+      include:{
+        members:{
+          include:{
+            user:{
+              select:{
+                id:true,
+                name: true
+              }
+            }
+          }
+        }
+      }
+    })
+    
+  }catch(error){
+    console.error(error)
+    return res.status(500).json({ message: "Server error" })
+  }
+}
+
+
+//////////////////////////////////////////////////////
 // SEND MESSAGE
 //////////////////////////////////////////////////////
 
@@ -61,49 +102,53 @@ export const sendMessage: RequestHandler = async (req, res) => {
 
 export const getMessages: RequestHandler = async (req, res) => {
   try {
-    const { conversationId, cursor } = req.query as {
-      conversationId: string
-      cursor?: string
-    }
-
+    const {conversationId, cursor} = req.query as { conversationId: string, cursor?: string }
     const user = req.user
 
-    if (!conversationId) {
-      return res.status(400).json({ message: "Missing conversationId" })
-    }
-
-    // Security check
-    const membership = await prisma.conversationMember.findFirst({
-      where: {
+    //1. SECURITY CHECKS
+    if(!conversationId) return res.status(400).json({message : "Missing Conversation Id"})
+    
+    const membership = prisma.conversationMember.findFirst({
+      where:{
         conversationId,
         userId: user.id
       }
     })
 
-    if (!membership) {
-      return res.status(403).json({ message: "Not authorized" })
-    }
-
-    const query: any = {
-      where: { conversationId },
+    if(!membership) return res.status(403).json({message: "Not Authorised"})
+    
+    //2. Build query
+    const query : Parameters<typeof prisma.message.findMany>[0] = {
+      where:{ conversationId },
       take: 20,
-      orderBy: { createdAt: "desc"},
-      include: {
-        sender: {
-          select: {id: true, name: true}
+      orderBy: [
+        { createdAt: "desc"},
+        { id: "desc"}
+      ],
+
+      include:{
+        sender:{
+          select:{
+            id:true,
+            name:true
+          }
         }
       }
     }
+      //4. CURSOR OPTIMIZATION
+      if(cursor){
+        query.cursor = {id:cursor}
+        query.skip = 1
+      }
 
-    if(cursor){
-      query.cursor = { id: cursor},
-      query.skip = 1
-    }
+      //5. FETCH MESSAGES
+      const messages = await prisma.message.findMany(query)
 
-    const messages = await prisma.message.findMany(query)
-
-    return res.json(messages)
-
+      return res.json({
+        messages,
+        nextCursor: messages.length > 0 ? messages[messages.length -1]!.id : null
+      })
+  
   } catch (error) {
     console.error(error)
     return res.status(500).json({ message: "Server error" })

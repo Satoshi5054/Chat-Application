@@ -1,9 +1,9 @@
 import { Router } from "express"
-import { sendMessage, getMessages } from "../controller/message.controller.js"
+import { getMessages, getConversations } from "../controller/message.controller.js"
+import requireAuth from "../middleware/requireAuth.js"
 
 const router = Router()
 
-router.post("/messages",sendMessage)
-router.get("/messages",getMessages)
-
+router.get("/conversatons",requireAuth,getConversations)
+router.get("/messages",requireAuth,getMessages)
 export default router
