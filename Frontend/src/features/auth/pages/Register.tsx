@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom"
 import { useState } from "react"
 
-import { register } from "../services/auth.service"
+import { register } from "../../../services/auth.service"
 import AuthLayout from "../components/AuthLayout"
 import AuthInput from "../components/AuthInput"
 import AuthButton from "../components/AuthButton"

@@ -43,6 +43,5 @@
   },
   "include": [
     "src",
-    "prisma.config.ts"
-  ]
+    "prisma.config.ts"]
 }
