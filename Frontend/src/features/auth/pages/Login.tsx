@@ -15,7 +15,6 @@ const Login = ()=>{
     const[form,setForm] = useState({
         email : "", 
         password : "", 
-        companyId : ""
     })
 
     const handleChange = (e : React.ChangeEvent<HTMLInputElement>) =>{
@@ -57,8 +56,6 @@ const Login = ()=>{
                 <form onSubmit={handleFormSubmit} className="space-y-10">
                     <AuthInput name="email" label="Email" type="email" value= {form.email} onChange = {handleChange} placeholder="name@company.com" />
                     <AuthInput name="password" label="Password" type="password" value = {form.password} onChange = {handleChange}  placeholder="••••••••" />
-                    <AuthInput name="companyId" label="Company ID" value= {form.companyId} onChange = {handleChange}  placeholder="Enter your company ID" />
-               
                     <AuthButton text={loading ? "Signing in..." : "Sign In"} />
                  </form>
                  

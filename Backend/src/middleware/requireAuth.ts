@@ -2,11 +2,8 @@ import "dotenv/config"
 import jwt from "jsonwebtoken"
 import type { Request, Response, NextFunction} from "express"
 
-type Payload = {
-    userId:  string
-    companyId: string
-    role: string
-
+export type Payload = {
+    userId: string
 }
 
 const requireAuth = async (req : Request, res: Response, next: NextFunction)=>{
@@ -20,9 +17,7 @@ const requireAuth = async (req : Request, res: Response, next: NextFunction)=>{
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as Payload
 
         req.user = {
-            id: decoded.userId,
-            companyId: decoded.companyId,
-            role: decoded.role
+            id: decoded.userId
         }
 
         next()

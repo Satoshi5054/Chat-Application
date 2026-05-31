@@ -1,8 +1,3 @@
-import {io} from "socket.io-client"
+import { io } from "socket.io-client"
 
-const SOCKET_URL = "http://localhost:4000/api"
-
-export const socket = io(SOCKET_URL,{
-    withCredentials: true,
-    autoConnect: false
-})
+export const socket = io("http://localhost:4000",{withCredentials: true})

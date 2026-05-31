@@ -1,119 +1,178 @@
-"use client"
-
-import Sidebar from "../components/Sidebar"
-import ChatHeader from "../components/ChatHeader"
-import MessageList from "../components/MessageList"
+import LeftSidebar from "../components/LeftSidebar"
+import Header from "../components/Header"
+import Body from "../components/Body"
 import MessageInput from "../components/MessageInput"
-import RightPanel from "../components/RightPanel"
-
 import { useEffect, useState } from "react"
-import { socket } from "../../../services/socket"
-
-import { getConversations, getMessages } from "../../../services/message.service"
-import type { Conversation, Message } from "../../../services/message.service"
+import { fetchMessages, sendMessage, type Message } from "../../../services/message.service"
+import { fetchConversations, type Conversation } from "../../../services/conversation.service"
 import { checkAuth } from "../../../services/auth.service"
 
-const Dashboard = () => {
+import { socket } from "../../../services/socket"
 
-  const [conversations,setConversations] = useState<Conversation[]>([])  
-  const [selectedChat, setSelectedChat] = useState<Conversation | null>(null)
+const Dashboard = () => {
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConversationId, setActiveConversationId] = useState("")
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>()
+  const [messageText, setMessageText] = useState("")
+  const [loadingConversations, setLoadingConversations] = useState(false)
+  const [loadingCurrentUser, setLoadingCurrentUser] = useState(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const [sendingMessage, setSendingMessage] = useState(false)
 
   useEffect(() => {
-    const fetchCurrentUser = async () => {
+    const loadCurrentUser = async () => {
+      setLoadingCurrentUser(true)
+
       try {
         const data = await checkAuth()
-        setCurrentUserId(data.user?.userId)
+        setCurrentUserId(data.loggedIn ? data.user?.userId ?? null : null)
       } catch (error) {
         console.error(error)
+        setCurrentUserId(null)
+      } finally {
+        setLoadingCurrentUser(false)
       }
     }
 
-    fetchCurrentUser()
+    void loadCurrentUser()
   }, [])
 
-  useEffect(()=>{
-    const fetchConversations = async ()=>{
-      try{
-        const data = await getConversations()
+  useEffect(() => {
+    const loadConversations = async () => {
+      setLoadingConversations(true)
+
+      try {
+        const data = await fetchConversations()
         setConversations(data)
 
-        if(data.length > 0) setSelectedChat(data[0])
-
-      }catch(error){
+        if (data.length > 0) {
+          setActiveConversationId((currentConversationId) => currentConversationId || data[0].id)
+        }
+      } catch (error) {
         console.error(error)
+        setConversations([])
+      } finally {
+        setLoadingConversations(false)
       }
     }
-    fetchConversations()
-  },[])
 
-  useEffect(()=>{
-    if(!selectedChat) return
+    void loadConversations()
+  }, [])
 
-    const fetchMessages = async ()=>{
-      try{
-        const data = await getMessages(selectedChat.id)
-        setMessages(data.messages)
+  useEffect(() => {
+    if (!activeConversationId) {
+      return
+    }
 
-      }catch(error){
+    const loadMessages = async () => {
+      setLoadingMessages(true)
+
+      try {
+        const data = await fetchMessages(activeConversationId)
+        setMessages(data)
+      } catch (error) {
         console.error(error)
+        setMessages([])
+      } finally {
+        setLoadingMessages(false)
       }
     }
 
-    fetchMessages()
-  },[selectedChat])
+    void loadMessages()
+  }, [activeConversationId])
 
-  useEffect(()=>{
-    socket.connect()
+  useEffect(() => {
+    if (!activeConversationId) return
 
-    return ()=>{ socket.disconnect() }
-  },[])
+    socket.emit(
+      "join-conversation",
+      activeConversationId
+    )
+  }, [activeConversationId])
 
-  const handleSend = () => {
-    if (!input.trim()) return
+  useEffect(() => {
+  const handleNewMessage = (message: Message) => {
+    if (message.conversationId !==activeConversationId) { return }
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content: input,
-      createdAt: new Date().toISOString(),
-      sender: {
-        id: currentUserId ?? "me",
-        name: "You"
-      }
-    }
-
-    setMessages((prev)=>[...prev, newMessage])
-    setInput("")
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      message
+    ])
   }
 
+  socket.on("new-message",handleNewMessage)
+
+  return () => {socket.off("new-message",handleNewMessage)}
+}, [activeConversationId])
+
+  const handleSelectConversation = (conversationId: string) => {
+    setActiveConversationId(conversationId)
+    setMessageText("")
+  }
+
+  const handleSendMessage = async () => {
+    const trimmedMessage = messageText.trim()
+
+    if (!trimmedMessage) {
+      return
+    }
+
+    setSendingMessage(true)
+
+    try {
+      const newMessage = await sendMessage({
+        conversationId: activeConversationId,
+        content: trimmedMessage
+      })
+      setMessageText("")
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setSendingMessage(false)
+    }
+  }
+
+  const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0]
+  const activeConversationTitle = activeConversation
+    ? activeConversation.isGroup
+      ? activeConversation.name ?? "Group Chat"
+      : activeConversation.members.find((member) => member.userId !== currentUserId)?.user.name ??
+        activeConversation.name ??
+        "Direct chat"
+    : "Select a conversation"
+
   return (
-    <div className="h-screen flex bg-[#0b1120] text-white">
-
-      <Sidebar
-        conversations={conversations}
-        selectedChat={selectedChat}
-        onSelect={(chat) => {setSelectedChat(chat)}}
-        currentUserId={currentUserId}
-      />
-
-      <div className="flex-1 flex flex-col">
-
-        <ChatHeader chat={selectedChat} currentUserId={currentUserId} />
-
-        <MessageList messages={messages} currentUserId={currentUserId} />
-
-        <MessageInput
-          input={input}
-          setInput={setInput}
-          onSend={handleSend}
+    <div className="h-[100dvh] overflow-hidden bg-slate-950 p-3 sm:p-4 lg:p-6">
+      <div className="grid h-full overflow-hidden rounded-[28px] border border-slate-700/80 bg-slate-50 shadow-lg shadow-slate-950/25 lg:grid-cols-[320px_1fr]">
+        <LeftSidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          currentUserId={currentUserId}
+          onSelectConversation={handleSelectConversation}
+          loading={loadingConversations}
         />
 
+        <main className="flex min-h-0 flex-col overflow-hidden bg-[#f7f7f5]">
+          <Header
+            title={activeConversationTitle}
+            subtitle={
+              activeConversation
+                ? activeConversation.isGroup
+                  ? `${activeConversation.members.length} members`
+                  : `${activeConversation.members.length} people in chat`
+                : "No conversations loaded"
+            }
+          />
+          <Body messages={messages} loading={loadingMessages || loadingCurrentUser} currentUserId={currentUserId} />
+          <MessageInput
+            value={messageText}
+            onChange={setMessageText}
+            onSend={handleSendMessage}
+            disabled={sendingMessage || !activeConversationId}
+          />
+        </main>
       </div>
-
-      <RightPanel />
-
     </div>
   )
 }

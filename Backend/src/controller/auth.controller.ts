@@ -7,35 +7,30 @@ import { prisma } from "../lib/prisma.js"
 // ================= REGISTER =================
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, role, companyId } = req.body
+    const { name, email, password } = req.body
 
-    if (!name || !email || !password || !companyId || !role) {
+    if (!name || !email || !password) {
       return res.status(400).json({ message: "Missing fields" })
     }
 
-    // check if user exists in same company
+    // check if user exists
     const existingUser = await prisma.user.findUnique({
       where: {
-        email_companyId: {
-          email,
-          companyId
-        }
+        email
       }
     })
 
     if (existingUser) {
-      return res.status(400).json({ message: "User already exists in this company" })
+      return res.status(400).json({ message: "User already exists" })
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
+    const hashedPassword = await bcrypt.hash(password, 8)
 
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password: hashedPassword,
-        companyId,
-        role
+        password: hashedPassword
       }
     })
 
@@ -51,18 +46,15 @@ export const register = async (req: Request, res: Response) => {
 // ================= LOGIN =================
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password, companyId } = req.body
+    const { email, password } = req.body
 
-    if (!email || !password || !companyId) {
+    if (!email || !password) {
       return res.status(400).json({ message: "Missing credentials" })
     }
 
     const user = await prisma.user.findUnique({
       where: {
-        email_companyId: {
-          email,
-          companyId
-        }
+        email
       }
     })
 
@@ -76,12 +68,9 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials" })
     }
 
-    //NEVER take role from client
     const token = jwt.sign(
       {
-        userId: user.id,
-        companyId: user.companyId,
-        role: user.role
+        userId: user.id
       },
       process.env.JWT_SECRET!,
       { expiresIn: "7d" }

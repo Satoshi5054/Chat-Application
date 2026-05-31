@@ -1,214 +1,95 @@
-import type { RequestHandler } from "express"
+import type { Request, Response } from "express"
 import { prisma } from "../lib/prisma.js"
+import { getIO } from "../sockets/index.js"
 
-//////////////////////////////////////////////////////
-// Get Conversations
-//////////////////////////////////////////////////////
-
-export const getConversations: RequestHandler = async (req,res)=>{
-  try{
-    const user = req.user
-
-    const conversations = await prisma.conversation.findMany({
-      where:{
-        companyId: user.companyId,
-        members: {
-          some:{
-            userId: user.id
-          }
-        }
-      },
-      orderBy:{
-        lastMessageAt: "desc"
-      },
-
-      include:{
-        members:{
-          include:{
-            user:{
-              select:{
-                id:true,
-                name: true
-              }
-            }
-          }
-        }
-      }
-    })
-    
-    return res.json(conversations)
-    
-  }catch(error){
-    console.error(error)
-    return res.status(500).json({ message: "Server error" })
-  }
-}
-
-//////////////////////////////////////////////////////
-// GET MESSAGES (CURSOR PAGINATION)
-//////////////////////////////////////////////////////
-
-export const getMessages: RequestHandler = async (req, res) => {
+export const sendMessage = async (req: Request,res: Response) => {
   try {
-    const {conversationId, cursor} = req.query as { conversationId: string, cursor?: string }
-    const user = req.user
+    const { conversationId, content } = req.body
 
-    //1. SECURITY CHECKS
-    if(!conversationId) return res.status(400).json({message : "Missing Conversation Id"})
-    
-    const membership = await prisma.conversationMember.findFirst({
-      where:{
-        conversationId,
-        userId: user.id
-      }
-    })
-
-    if(!membership) return res.status(403).json({message: "Not Authorised"})
-    
-    //2. Build query
-    const query : Parameters<typeof prisma.message.findMany>[0] = {
-      where:{ conversationId },
-      take: 20,
-      orderBy: [
-        { createdAt: "desc"},
-        { id: "desc"}
-      ],
-
-      include:{
-        sender:{
-          select:{
-            id:true,
-            name:true
-          }
-        }
-      }
-    }
-      //4. CURSOR OPTIMIZATION
-      if(cursor){
-        query.cursor = {id:cursor}
-        query.skip = 1
-      }
-
-      //5. FETCH MESSAGES
-      const messages = await prisma.message.findMany(query)
-
-      return res.json({
-        messages,
-        nextCursor: messages.length > 0 ? messages[messages.length -1]!.id : null
+    if (typeof conversationId !== "string" || !content) {
+      return res.status(400).json({
+        message: "Conversation ID and content are required"
       })
-  
-  } catch (error) {
-    console.error(error)
-    return res.status(500).json({ message: "Server error" })
-  }
-}
-
-//////////////////////////////////////////////////////
-// SEND MESSAGE
-//////////////////////////////////////////////////////
-
-export const sendMessage: RequestHandler = async (req, res) => {
-  try {
-    const {conversationId, content, type="TEXT"} = req.body
-    const user = req.user
-
-    if(!conversationId || !content){
-      return res.status(400).json({ message : "Missing fields" })
     }
 
-    // Ensure user is part of conversation 
-    const membership = await prisma.conversationMember.findFirst({
-      where: {
-        conversationId,
-        userId : user.id
-      }
-    })
+    const messageConversationId = conversationId
 
-    if (!membership) {
-      return res.status(403).json({ message: "Not part of this conversation" })
-    }
-
-    // Create message
     const message = await prisma.message.create({
       data: {
         content,
-        type,
-        conversationId,
-        senderId : user.id
+        conversationId: messageConversationId,
+        senderId: req.user.id
       },
-      include:{
-        sender:{
-          select:{ id: true, name: true }
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true
+          }
         }
       }
     })
 
-    // Update conversation 
+    const io = getIO()
+    io.to(messageConversationId).emit("new-message", message)
+
     await prisma.conversation.update({
-      where: { id: conversationId },
+      where: {
+        id: messageConversationId
+      },
       data: {
         lastMessage: content,
         lastMessageAt: new Date()
       }
     })
 
-    req.io.to(conversationId).emit("receive_message", message)
-
     return res.status(201).json(message)
 
   } catch (error) {
     console.error(error)
-    return res.status(500).json({ message: "Server error" })
+
+    return res.status(500).json({
+      message: "Server Error"
+    })
   }
 }
 
-//////////////////////////////////////////////////////
-// MARK AS READ 
-//////////////////////////////////////////////////////
-
-export const markAsRead: RequestHandler = async (req, res) => {
+export const getMessages = async (req: Request,res: Response) => {
   try {
-    const { conversationId, messageId } = req.body
-    const user = req.user
+    const { conversationId } = req.params
 
-    if (!conversationId || !messageId) {
-      return res.status(400).json({ message: "Missing fields" })
+    if (typeof conversationId !== "string") {
+      return res.status(400).json({
+        message: "Conversation ID is required"
+      })
     }
 
-    // Ensure user is part of conversation
-    const membership = await prisma.conversationMember.findFirst({
-      where: {
-        conversationId,
-        userId: user.id
-      }
-    })
+    
 
-    if (!membership) {
-      return res.status(403).json({ message: "Not authorized" })
-    }
-
-    //  Update last read pointer
-    await prisma.conversationMember.update({
+    const messages = await prisma.message.findMany({
       where: {
-        conversationId_userId: {
-          conversationId,
-          userId: user.id
+        conversationId
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true
+          }
         }
       },
-
-      data: {
-        lastReadMessageId: messageId
+      orderBy: {
+        createdAt: "asc"
       }
     })
-    
-    req.io.to(conversationId).emit("message_read"),{
-      userId: user.id,
-      messageId
-    }
 
-    res.json({ success: true })
+    return res.json(messages)
+
   } catch (error) {
     console.error(error)
-    return res.status(500).json({ message: "Server error" })
+
+    return res.status(500).json({
+      message: "Server Error"
+    })
   }
 }

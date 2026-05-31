@@ -1,70 +1,30 @@
 import api from "./api"
 
-//////////////////////////////////////////////////////
-// TYPES
-//////////////////////////////////////////////////////
-
-export type Conversation = {
+export type MessageSender = {
   id: string
-  isGroup?: boolean
-  lastMessage?: string
-  lastMessageAt?: string
-  members: {
-    user: {
-      id: string
-      name: string
-    }
-  }[]
-}
-
-export const getConversationTitle = (
-  conversation: Conversation,
-  currentUserId?: string
-) => {
-  const otherMembers = conversation.members
-    .map((member) => member.user)
-    .filter((user) => user.id !== currentUserId)
-
-  if (conversation.isGroup) {
-    const names = otherMembers.map((user) => user.name)
-    return names.length > 0 ? names.join(", ") : "Group chat"
-  }
-
-  return otherMembers[0]?.name ?? conversation.members[0]?.user.name ?? "Chat"
+  name: string
 }
 
 export type Message = {
   id: string
   content: string
+  conversationId: string
+  senderId: string
+  sender: MessageSender
   createdAt: string
-  sender: {
-    id: string
-    name: string
-  }
 }
 
-export type GetMessagesResponse = {
-  messages: Message[]
-  nextCursor?: string | null
+export type SendMessagePayload = {
+  conversationId: string
+  content: string
 }
 
-//////////////////////////////////////////////////////
-// GET CONVERSATIONS
-//////////////////////////////////////////////////////
-
-export const getConversations = async (): Promise<Conversation[]> => {
-  const res = await api.get("/chat/conversations")
+export const fetchMessages = async (conversationId: string) => {
+  const res = await api.get<Message[]>(`/messages/${conversationId}`)
   return res.data
 }
 
-//////////////////////////////////////////////////////
-// GET MESSAGES
-//////////////////////////////////////////////////////
-
-export const getMessages = async (conversationId: string): Promise<GetMessagesResponse> => {
-  const res = await api.get("/chat/messages", {
-    params: { conversationId }
-  })
-
+export const sendMessage = async (payload: SendMessagePayload) => {
+  const res = await api.post<Message>("/messages", payload)
   return res.data
 }

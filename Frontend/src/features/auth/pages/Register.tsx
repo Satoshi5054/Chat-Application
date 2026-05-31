@@ -15,8 +15,6 @@ const Register = () => {
     name: "",
     email: "",
     password: "",
-    role: "",
-    companyId: "",
   })
 
   const handleChange = (e : React.ChangeEvent<HTMLInputElement | HTMLSelectElement>)=>{
@@ -60,23 +58,6 @@ const Register = () => {
           <AuthInput name = "email" label="Email" type="email" value= {form.email} onChange={handleChange} placeholder="name@company.com" />
           <AuthInput name = "password" label="Password" type="password" value= {form.password} onChange={handleChange} placeholder="••••••••" />
 
-          <div className="space-y-2">
-            <label className="text-sm text-gray-400">Role</label>
-
-            <select
-                name = "role"
-                value={form.role}
-                onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg bg-[#0f172a] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-                <option value="" disabled className="bg-[#0f172a]">Select role</option>
-                <option value="admin">Admin</option>
-                <option value="manager">Manager</option>
-                <option value="employee">Employee</option>
-            </select>
-            </div>
-
-          <AuthInput name="companyId" label="Company ID" value={form.companyId} onChange={handleChange} placeholder="Enter company ID" />
           <AuthButton text={loading ? "Creating..." : "Create Account"} />
         </form>
 

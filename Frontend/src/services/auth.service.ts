@@ -1,10 +1,18 @@
 import api from "./api"
 
+export type AuthUser = {
+  userId: string
+}
+
+export type AuthMeResponse = {
+  loggedIn: boolean
+  user?: AuthUser
+}
+
 // ================= LOGIN =================
 export const login = async (data: {
   email: string;
   password: string;
-  companyId: string;
 }) => {
   const res = await api.post("/auth/login", data);
   return res.data;
@@ -15,8 +23,6 @@ export const register = async (data: {
   name: string;
   email: string;
   password: string;
-  role: string;
-  companyId: string;
 }) => {
   const res = await api.post("/auth/register", data);
   return res.data;
@@ -24,8 +30,8 @@ export const register = async (data: {
 
 // ================= CHECK AUTH =================
 export const checkAuth = async () => {
-  const res = await api.get("/auth/me");
-  return res.data;
+  const res = await api.get<AuthMeResponse>("/auth/me")
+  return res.data
 };
 
 // ================= LOGOUT =================

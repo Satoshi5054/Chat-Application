@@ -1,10 +1,12 @@
 import { Router } from "express"
 import authRoutes from "./auth.routes.js"
-import chatRoutes from "./messages.routes.js"
+import conversationRoutes from "./conversation.routes.js"
+import messageRoutes from "./message.routes.js"
 
 const router = Router()
 
 router.use("/auth", authRoutes)
-router.use("/chat", chatRoutes)
+router.use("/conversations", conversationRoutes)
+router.use("/messages",messageRoutes)
 
 export default router
