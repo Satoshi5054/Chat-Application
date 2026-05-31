@@ -4,11 +4,12 @@ import SendMessage from "./SendMessage"
 type MessageInputProps = {
   value: string
   onChange: (value: string) => void
+  onTyping?: () => void
   onSend: () => void
   disabled?: boolean
 }
 
-const MessageInput = ({ value, onChange, onSend, disabled }: MessageInputProps) => {
+const MessageInput = ({ value, onChange, onTyping, onSend, disabled }: MessageInputProps) => {
   return (
     <footer className="border-t border-slate-200 bg-[#f7f7f5] px-6 py-4">
       <div className="flex items-end gap-3 rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
@@ -25,7 +26,10 @@ const MessageInput = ({ value, onChange, onSend, disabled }: MessageInputProps) 
             rows={1}
             placeholder="Write your message..."
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => {
+              onChange(event.target.value)
+              onTyping?.()
+            }}
             className="min-h-12 w-full resize-none rounded-2xl border border-transparent bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-slate-300"
           />
         </div>

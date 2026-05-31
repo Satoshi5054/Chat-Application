@@ -2,7 +2,7 @@ import LeftSidebar from "../components/LeftSidebar"
 import Header from "../components/Header"
 import Body from "../components/Body"
 import MessageInput from "../components/MessageInput"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { fetchMessages, sendMessage, type Message } from "../../../services/message.service"
 import { fetchConversations, type Conversation } from "../../../services/conversation.service"
 import { checkAuth } from "../../../services/auth.service"
@@ -19,6 +19,9 @@ const Dashboard = () => {
   const [loadingCurrentUser, setLoadingCurrentUser] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([])
+  const [typingUserId, setTypingUserId] = useState<string | null>(null)
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -83,12 +86,32 @@ const Dashboard = () => {
   }, [activeConversationId])
 
   useEffect(() => {
+    const handleOnlineUsers = (users: string[]) => {
+      setOnlineUsers(users)
+    }
+
+    socket.on("online-users", handleOnlineUsers)
+
+    return () => {
+      socket.off("online-users", handleOnlineUsers)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!activeConversationId) return
 
     socket.emit(
       "join-conversation",
       activeConversationId
     )
+
+    socket.emit("mark-read", activeConversationId)
+
+    return () => {
+      socket.emit("leave-conversation", activeConversationId)
+      socket.emit("stop-typing", activeConversationId)
+      setTypingUserId(null)
+    }
   }, [activeConversationId])
 
   useEffect(() => {
@@ -106,6 +129,40 @@ const Dashboard = () => {
   return () => {socket.off("new-message",handleNewMessage)}
 }, [activeConversationId])
 
+  useEffect(() => {
+    const handleUserTyping = (userId: string) => {
+      if (userId === currentUserId) {
+        return
+      }
+
+      setTypingUserId(userId)
+    }
+
+    const handleUserStopTyping = (userId: string) => {
+      if (userId === currentUserId) {
+        return
+      }
+
+      setTypingUserId((currentTypingUserId) => (currentTypingUserId === userId ? null : currentTypingUserId))
+    }
+
+    socket.on("user-typing", handleUserTyping)
+    socket.on("user-stop-typing", handleUserStopTyping)
+
+    return () => {
+      socket.off("user-typing", handleUserTyping)
+      socket.off("user-stop-typing", handleUserStopTyping)
+    }
+  }, [currentUserId])
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const handleSelectConversation = (conversationId: string) => {
     setActiveConversationId(conversationId)
     setMessageText("")
@@ -121,11 +178,12 @@ const Dashboard = () => {
     setSendingMessage(true)
 
     try {
-      const newMessage = await sendMessage({
+      await sendMessage({
         conversationId: activeConversationId,
         content: trimmedMessage
       })
       setMessageText("")
+      socket.emit("stop-typing", activeConversationId)
     } catch (error) {
       console.error(error)
     } finally {
@@ -133,17 +191,44 @@ const Dashboard = () => {
     }
   }
 
+  const handleTyping = () => {
+    if (!activeConversationId) {
+      return
+    }
+
+    socket.emit("typing", activeConversationId)
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stop-typing", activeConversationId)
+    }, 1000)
+  }
+
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0]
+  const directMember = activeConversation?.members.find((member) => member.userId !== currentUserId)
+  const isDirectMemberOnline = directMember ? onlineUsers.includes(directMember.user.id) : false
+
   const activeConversationTitle = activeConversation
     ? activeConversation.isGroup
       ? activeConversation.name ?? "Group Chat"
-      : activeConversation.members.find((member) => member.userId !== currentUserId)?.user.name ??
+      : directMember?.user.name ??
         activeConversation.name ??
         "Direct chat"
     : "Select a conversation"
 
+  const typingUserName = useMemo(() => {
+    if (!typingUserId || !activeConversation) {
+      return null
+    }
+
+    return activeConversation.members.find((member) => member.userId === typingUserId)?.user.name ?? null
+  }, [typingUserId, activeConversation])
+
   return (
-    <div className="h-[100dvh] overflow-hidden bg-slate-950 p-3 sm:p-4 lg:p-6">
+    <div className="h-dvh overflow-hidden bg-slate-950 p-3 sm:p-4 lg:p-6">
       <div className="grid h-full overflow-hidden rounded-[28px] border border-slate-700/80 bg-slate-50 shadow-lg shadow-slate-950/25 lg:grid-cols-[320px_1fr]">
         <LeftSidebar
           conversations={conversations}
@@ -160,14 +245,22 @@ const Dashboard = () => {
               activeConversation
                 ? activeConversation.isGroup
                   ? `${activeConversation.members.length} members`
-                  : `${activeConversation.members.length} people in chat`
+                  : isDirectMemberOnline
+                    ? "Online"
+                    : "Offline"
                 : "No conversations loaded"
             }
           />
-          <Body messages={messages} loading={loadingMessages || loadingCurrentUser} currentUserId={currentUserId} />
+          <Body
+            messages={messages}
+            loading={loadingMessages || loadingCurrentUser}
+            currentUserId={currentUserId}
+            typingUserName={typingUserName}
+          />
           <MessageInput
             value={messageText}
             onChange={setMessageText}
+            onTyping={handleTyping}
             onSend={handleSendMessage}
             disabled={sendingMessage || !activeConversationId}
           />

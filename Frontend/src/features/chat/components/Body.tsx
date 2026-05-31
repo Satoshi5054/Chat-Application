@@ -4,11 +4,12 @@ type BodyProps = {
   messages: Message[]
   loading: boolean
   currentUserId: string | null
+  typingUserName?: string | null
 }
 
-const Body = ({ messages, loading, currentUserId }: BodyProps) => {
+const Body = ({ messages, loading, currentUserId, typingUserName }: BodyProps) => {
   return (
-    <section className="flex-1 min-h-0 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,_#f8faf7_0%,_#f1f5f9_100%)] px-6 py-6">
+    <section className="flex-1 min-h-0 space-y-4 overflow-y-auto bg-[linear-gradient(180deg,#f8faf7_0%,#f1f5f9_100%)] px-6 py-6">
       {loading ? (
         <div className="flex h-full items-center justify-center text-sm text-slate-500">
           Loading messages...
@@ -47,6 +48,8 @@ const Body = ({ messages, loading, currentUserId }: BodyProps) => {
           No messages yet. Send the first message.
         </div>
       )}
+
+      {typingUserName ? <p className="text-sm text-slate-500">{typingUserName} is typing...</p> : null}
     </section>
   )
 }

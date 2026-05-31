@@ -2,6 +2,7 @@ import api from "./api"
 
 export type ConversationMember = {
   userId: string
+  lastReadMessageId?: string | null
   user: {
     id: string
     name: string
